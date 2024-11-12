@@ -14,10 +14,13 @@ void render(struct state state) {
   erase();
   printw("%s\n", state.path);
   for (int i = 0; i < state.count; i++) {
-    if (i == state.index)
-      printw("> %s\n", state.files[i]->d_name);
+    if (i == state.index) {
+      attron(A_REVERSE);
+      printw("%s\n", state.files[i]->d_name);
+      attroff(A_REVERSE);
+    }
     else
-      printw("  %s\n", state.files[i]->d_name);
+      printw("%s\n", state.files[i]->d_name);
   }
 	refresh();
 }
