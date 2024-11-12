@@ -12,7 +12,7 @@ struct state {
 
 void render(struct state state) {
   erase();
-  printw("%s\n\n", state.path);
+  printw("%s\n", state.path);
   for (int i = 0; i < state.count; i++) {
     if (i == state.index)
       printw("> %s\n", state.files[i]->d_name);
@@ -27,7 +27,9 @@ void update_dir(struct state *state) {
   state->index = 0;
   DIR *d = opendir(state->path);
   struct dirent *dir;
-  dir = readdir(d);
+  readdir(d);
+  if (!strcmp(state->path, "/"))
+    readdir(d);
   while ((dir = readdir(d)) != NULL) {
     state->files[i] = dir;
     i++;
@@ -41,7 +43,6 @@ int main() {
     .index = 0
   };
   realpath(".", state.path);
-  printf("%s\n", state.path);
   update_dir(&state);
   
   initscr();
@@ -49,7 +50,8 @@ int main() {
   noecho();
   curs_set(0);
   render(state);
-  char p[BUFSIZ];
+  char path[BUFSIZ];
+  char cmd[BUFSIZ];
   struct stat stbuf;
 	while (state.run) {
 	  switch (getch()) {
@@ -72,21 +74,21 @@ int main() {
 	      render(state);
 	      break;
 	    case 10:
-	      stat(state.files[state.index]->d_name, &stbuf);
+	      strcpy(path, state.path);
+        if (strcmp(state.path, "/"))
+          strcat(path, "/");
+        strcat(path, state.files[state.index]->d_name);
+	      stat(path, &stbuf);
 	      if (S_ISDIR(stbuf.st_mode)) {
-	        strcat(state.path, "/");
-	        strcat(state.path, state.files[state.index]->d_name);
-  	      // realpath(state.path, state.path);
+  	      realpath(path, state.path);
   	      update_dir(&state);
   	    } else {
-  	      // strcpy(p, "hx ");
-  	      // strcat(p, state.path);
-  	      // printw("%s\n", p);
-  	      // refresh();
-  	      // system(p);
-         //  curs_set(1);
-         //  curs_set(0);
-  	      // clear();
+  	      strcpy(cmd, "${EDITOR} ");
+  	      strcat(cmd, path);
+  	      system(cmd);
+          curs_set(1);
+          curs_set(0);
+  	      clear();
   	    }
         render(state);
 	      break;
