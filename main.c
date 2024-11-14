@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <curses.h>
 #include <sys/stat.h>
@@ -28,11 +29,18 @@ void render(struct state state) {
     else
       wprintw(state.tree, "%s\n", state.files[i]);
   }
-  wprintw(state.tree, "%s\n", state.file);
   pnoutrefresh(state.tree, 0, 0, 0, 0, LINES - 1, COLS - 1);
   werase(state.view);
   int m = COLS - state.tree_width - 1;
-  if (!state.dirs[state.index]) {
+  if (state.dirs[state.index]) {
+    DIR *d = opendir(state.file);
+    struct dirent *dir;
+    readdir(d);
+    readdir(d);
+    while ((dir = readdir(d)) != NULL) {
+      wprintw(state.view, "%s\n", dir->d_name);
+    }
+  } else {
     FILE *fp = fopen(state.file, "r");
     ssize_t read;
     char *line = NULL;
@@ -50,8 +58,10 @@ void render(struct state state) {
 void update_view(struct state *state) {
   strcpy(state->file, state->pwd);
   int length = strlen(state->file);
-  if (state->file[length - 1] != '/')
+  if (state->file[length - 1] != '/') {
     state->file[length] = '/';
+    state->file[length + 1] = '\0';
+  }
   strcat(state->file, state->files[state->index]);
 }
 
