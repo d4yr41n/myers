@@ -19,17 +19,16 @@ struct state {
 
 void render(struct state state) {
   werase(state.tree);
-  wprintw(state.tree, "%s\n", state.pwd);
+  wprintw(state.tree, "%s", state.pwd);
   for (int i = 0; i < state.count; i++) {
     if (i == state.index) {
-      wattron(state.tree, A_REVERSE);
+      wattrset(state.tree, A_REVERSE);
       wprintw(state.tree, "%s\n", state.files[i]);
       wattroff(state.tree, A_REVERSE);
     }
     else
       wprintw(state.tree, "%s\n", state.files[i]);
   }
-  pnoutrefresh(state.tree, 0, 0, 0, 0, LINES - 1, COLS - 1);
   werase(state.view);
   int m = COLS - state.tree_width - 1;
   if (state.dirs[state.index]) {
@@ -47,12 +46,12 @@ void render(struct state state) {
     size_t l = 0;
     if (fp != NULL) {
       while ((read = getline(&line, &l, fp)) != -1) {
-          wprintw(state.view, "%s", line);
+          waddnstr(state.view, line, 80);
       }
     }
   }
-  pnoutrefresh(state.view, 0, 0, 0, state.tree_width + 1, LINES - 1, COLS - 1);
-  doupdate();
+  wrefresh(state.tree);
+  wrefresh(state.view);
 }
 
 void update_view(struct state *state) {
@@ -86,6 +85,8 @@ void update_tree(struct state *state) {
       state->tree_width = length;
     i++;
   }
+  state->tree = newwin(LINES, state->tree_width, 0, 0);
+  state->view = newwin(LINES, COLS - state->tree_width - 1, 0, state->tree_width + 1);
   state->count = i;
 }
 
@@ -126,8 +127,6 @@ int main() {
   noecho();
   curs_set(0);
   struct state state = {
-    .tree = newpad(BUFSIZ, BUFSIZ),
-    .view = newpad(BUFSIZ, BUFSIZ),
     .run = true
   };
 
