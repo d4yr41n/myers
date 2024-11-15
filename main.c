@@ -34,7 +34,7 @@ void render(struct state state) {
     size_t l = 0;
     if (fp != NULL) {
       while ((read = getline(&line, &l, fp)) != -1)
-        waddnstr(state.view, line, COLS - state.tree_width - 1);
+        waddnstr(state.view, line, COLS - state.tree_width - 4);
     }
   }
   wrefresh(state.view);
@@ -43,7 +43,7 @@ void render(struct state state) {
   for (int i = 0; i < state.count; i++) {
     if (i == state.index) {
       wattrset(state.tree, A_REVERSE);
-      waddnstr(state.tree, state.files[i], state.tree_width + 1);
+      waddnstr(state.tree, state.files[i], state.tree_width + 4);
       waddstr(state.tree, "\n");
       wattroff(state.tree, A_REVERSE);
     }
