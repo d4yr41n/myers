@@ -8,4 +8,5 @@ A minimal terminal file explorer
 
 - [ ] error messages
 - [ ] hotkeys to create, rename, delete files and directories
-- [ ] content preview
+- [x] content preview
+- [ ] scroll

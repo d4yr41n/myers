@@ -18,14 +18,17 @@ struct state {
 
 void render(struct state state) {
   werase(state.view);
+  int i = 0;
   if (state.dirs[state.index]) {
     DIR *d = opendir(state.files[state.index]);
     if (d != NULL) {
       struct dirent *dir;
       readdir(d);
       readdir(d);
-      while ((dir = readdir(d)) != NULL)
+      while ((dir = readdir(d)) != NULL && i < LINES) {
         wprintw(state.view, "%s\n", dir->d_name);
+        i++;
+      }
     }
   } else {
     FILE *fp = fopen(state.files[state.index], "r");
@@ -33,8 +36,10 @@ void render(struct state state) {
     char *line = NULL;
     size_t l = 0;
     if (fp != NULL) {
-      while ((read = getline(&line, &l, fp)) != -1)
-        waddnstr(state.view, line, COLS - state.tree_width - 4);
+      while ((read = getline(&line, &l, fp)) != -1 && i < LINES) {
+        waddnstr(state.view, line, COLS - state.tree_width);
+        i++;
+      }
     }
   }
   wrefresh(state.view);
@@ -43,7 +48,7 @@ void render(struct state state) {
   for (int i = 0; i < state.count; i++) {
     if (i == state.index) {
       wattrset(state.tree, A_REVERSE);
-      waddnstr(state.tree, state.files[i], state.tree_width + 4);
+      waddnstr(state.tree, state.files[i], state.tree_width);
       waddstr(state.tree, "\n");
       wattroff(state.tree, A_REVERSE);
     }
@@ -72,8 +77,9 @@ void update(struct state *state) {
       state->tree_width = length;
     i++;
   }
-  state->tree = newwin(LINES, state->tree_width + 4, 0, 0);
-  state->view = newwin(LINES, COLS - state->tree_width - 4, 0, state->tree_width + 4);
+  state->tree_width += 4;
+  state->tree = newwin(LINES, state->tree_width, 0, 0);
+  state->view = newwin(LINES, COLS - state->tree_width - 4, 0, state->tree_width);
   state->count = i;
 }
 
@@ -108,6 +114,10 @@ void event(struct state *state) {
         strcat(cmd, " ");
         strcat(cmd, state->files[state->index]);
         system(cmd);
+        wclear(state->tree);
+        wclear(state->view);
+        curs_set(1);
+        curs_set(0);
       }
       render(*state);
 	    break;
