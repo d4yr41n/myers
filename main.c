@@ -11,38 +11,6 @@ struct state {
   char *editor;
 };
 
-DIR *fetch() {
-  DIR *dir = opendir(".");
-  readdir(dir);
-  readdir(dir);
-  return dir;
-}
-
-void init_state(struct state *state) {
-  DIR *dir = fetch();
-  struct dirent *entry;
-
-  state->entry_count = 0;
-  while ((entry = readdir(dir)) != NULL) {
-    state->entry_count++;
-  }
-
-  state->entries = calloc(state->entry_count + 4, sizeof(ITEM *));
-  closedir(dir);
-
-  dir = fetch();
-  state->entry_count = 0;
-  while ((entry = readdir(dir)) != NULL) {
-    state->entries[state->entry_count] = new_item(entry->d_name, NULL);
-    state->entry_count++;
-  }
-  closedir(dir);
-  state->menu = new_menu(state->entries);
-  set_menu_mark(state->menu, NULL);
-  set_menu_format(state->menu, LINES, 1);
-  post_menu(state->menu);
-}
-
 void free_state(struct state *state) {
   unpost_menu(state->menu);
   free_menu(state->menu);
@@ -51,21 +19,42 @@ void free_state(struct state *state) {
   free(state->entries);
 }
 
-void update_state(struct state *state) {
-  free_state(state);
-  init_state(state);
-}
+bool init_state(const char *dirname, struct state *state) {
+  DIR *dir = opendir(dirname);
+  if (dir == NULL)
+    return false;
 
+  if (state->entry_count)
+    free_state(state);
+
+  state->entry_count = 0;
+
+  while (readdir(dir) != NULL) {
+    state->entry_count++;
+  }
+
+  state->entries = calloc(state->entry_count + 1, sizeof(ITEM *));
+
+  dir = opendir(dirname);
+  for (int i = 0; i < state->entry_count; i++)
+    state->entries[i] = new_item(readdir(dir)->d_name, NULL);
+
+  state->menu = new_menu(state->entries);
+  set_menu_mark(state->menu, NULL);
+  set_menu_format(state->menu, LINES, 1);
+  post_menu(state->menu);
+  return true;
+}
 
 void enter(const char *name, struct state *state) {
   struct stat stbuf;
   stat(name, &stbuf);
   if (S_ISDIR(stbuf.st_mode)) {
-    chdir(name);
-    update_state(state);
+    if (init_state(name, state))
+      chdir(name);
   } else {
     if (state->editor) {
-      char *cmd = malloc(sizeof(char) * (strlen(state->editor) + 1));
+      char *cmd = malloc(strlen(state->editor) + 1);
       strcpy(cmd, state->editor);
       strcat(cmd, " ");
       strcat(cmd, name);
@@ -96,8 +85,7 @@ bool input(struct state *state) {
       break;
     case KEY_DOWN:
     case 'h':
-      chdir("..");
-      update_state(state);
+      enter("..", state);
       break;
     case 'j':
       menu_driver(state->menu, REQ_DOWN_ITEM);
@@ -121,10 +109,12 @@ int main() {
   curs_set(0);
   keypad(stdscr, true);
   mousemask(ALL_MOUSE_EVENTS, NULL);
-  struct state *state = malloc(sizeof(struct state));
-  state->editor = getenv("EDITOR");
-  init_state(state);
-  while (input(state));
-  free_state(state);
+  struct state state = {
+    .editor = getenv("EDITOR"),
+    .entry_count = 0
+  };
+  init_state(".", &state);
+  while (input(&state));
+  free_state(&state);
   endwin();
 }

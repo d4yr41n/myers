@@ -3,7 +3,7 @@ BIN = myers
 PREFIX ?= /usr/local
 
 all:
-	cc main.c -l curses -l menu -l panel -o $(BIN)
+	cc main.c -l curses -l menu -o $(BIN)
 clean:
 	rm -f $(BIN)
 install:
