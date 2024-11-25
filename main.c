@@ -104,6 +104,7 @@ bool input(struct state *state) {
 }
 
 int main() {
+  printf("\033[H\033[J");
   initscr();
   cbreak();
   noecho();
