@@ -10,7 +10,13 @@ struct state {
   MENU *menu;
   int entry_count;
   char *editor;
+  WINDOW *sub;
 };
+
+void clear_line(int y) {
+  move(y, 0);
+  clrtoeol();
+}
 
 void free_state(struct state *state) {
   unpost_menu(state->menu);
@@ -40,9 +46,13 @@ bool init_state(const char *dirname, struct state *state) {
   for (int i = 0; i < state->entry_count; i++)
     state->entries[i] = new_item(readdir(dir)->d_name, NULL);
 
+  clear_line(0);
+  mvaddstr(0, 0, realpath(dirname, NULL));
+
   state->menu = new_menu(state->entries);
   set_menu_mark(state->menu, NULL);
-  set_menu_format(state->menu, LINES, 1);
+  set_menu_format(state->menu, LINES - 2, 1);
+  set_menu_sub(state->menu, state->sub);
   post_menu(state->menu);
   return true;
 }
@@ -54,7 +64,7 @@ void enter(const char *name, struct state *state) {
     if (init_state(name, state))
       chdir(name);
   } else {
-    if (state->editor) {
+    if (state->editor != NULL) {
       char *cmd = malloc(strlen(state->editor) + 1);
       strcpy(cmd, state->editor);
       strcat(cmd, " ");
@@ -64,9 +74,12 @@ void enter(const char *name, struct state *state) {
       system(cmd);
       reset_prog_mode();
       refresh();
+    } else {
+      mvaddstr(LINES - 1, 0, "EDITOR is not set");
     }
   }
 }
+
 
 bool input(struct state *state) {
   bool run = true;
@@ -89,10 +102,12 @@ bool input(struct state *state) {
       enter("..", state);
       break;
     case 'j':
+      clear_line(LINES - 1);
       menu_driver(state->menu, REQ_DOWN_ITEM);
       break;
     case KEY_UP:
     case 'k':
+      clear_line(LINES - 1);
       menu_driver(state->menu, REQ_UP_ITEM);
       break;
     case 'l':
@@ -113,7 +128,8 @@ int main() {
   mousemask(ALL_MOUSE_EVENTS, NULL);
   struct state state = {
     .editor = getenv("EDITOR"),
-    .entry_count = 0
+    .entry_count = 0,
+    .sub = subwin(stdscr, LINES - 2, COLS, 1, 0)
   };
   init_state(".", &state);
   while (input(&state));
