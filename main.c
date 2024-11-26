@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct state {
   ITEM **entries;
@@ -39,7 +40,6 @@ bool init_state(const char *dirname, struct state *state) {
   while (readdir(dir) != NULL) {
     state->entry_count++;
   }
-
   state->entries = calloc(state->entry_count + 1, sizeof(ITEM *));
 
   dir = opendir(dirname);
