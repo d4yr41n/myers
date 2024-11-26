@@ -44,7 +44,7 @@ bool init_state(const char *dirname, struct state *state) {
 
   dir = opendir(dirname);
   for (int i = 0; i < state->entry_count; i++)
-    state->entries[i] = new_item(readdir(dir)->d_name, NULL);
+    state->entries[i] = new_item(strdup(readdir(dir)->d_name), NULL);
 
   clear_line(0);
   mvaddstr(0, 0, realpath(dirname, NULL));
