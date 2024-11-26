@@ -94,10 +94,10 @@ bool input(struct state *state) {
     case 'q':
       run = false;
       break;
-    case KEY_DOWN:
     case 'h':
       enter("..", state);
       break;
+    case KEY_DOWN:
     case 'j':
       clear_line(LINES - 1);
       menu_driver(state->menu, REQ_DOWN_ITEM);
