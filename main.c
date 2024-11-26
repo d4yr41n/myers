@@ -7,11 +7,11 @@
 #include <string.h>
 
 struct state {
-  ITEM **entries;
+  ITEM **menu_items;
   MENU *menu;
   int entry_count;
   char *editor;
-  WINDOW *sub;
+  WINDOW *main;
 };
 
 void clear_line(int y) {
@@ -23,36 +23,33 @@ void free_state(struct state *state) {
   unpost_menu(state->menu);
   free_menu(state->menu);
   for (int i = 0; i < state->entry_count; i++)
-    free_item(state->entries[i]);
-  free(state->entries);
+    free_item(state->menu_items[i]);
+  free(state->menu_items);
 }
 
 bool init_state(const char *dirname, struct state *state) {
-  DIR *dir = opendir(dirname);
-  if (dir == NULL)
+  struct dirent **entries;
+  int entry_count = scandir(dirname, &entries, NULL, alphasort);
+  if (entry_count == -1)
     return false;
 
   if (state->entry_count)
     free_state(state);
 
-  state->entry_count = 0;
+  state->menu_items = calloc(entry_count + 1, sizeof(ITEM *));
+  state->entry_count = entry_count;
 
-  while (readdir(dir) != NULL) {
-    state->entry_count++;
+  for (int i = 0; i < entry_count; i++) {
+    state->menu_items[i] = new_item(entries[i]->d_name, NULL);
   }
-  state->entries = calloc(state->entry_count + 1, sizeof(ITEM *));
-
-  dir = opendir(dirname);
-  for (int i = 0; i < state->entry_count; i++)
-    state->entries[i] = new_item(strdup(readdir(dir)->d_name), NULL);
 
   clear_line(0);
   mvaddstr(0, 0, realpath(dirname, NULL));
 
-  state->menu = new_menu(state->entries);
+  state->menu = new_menu(state->menu_items);
   set_menu_mark(state->menu, NULL);
   set_menu_format(state->menu, LINES - 2, 1);
-  set_menu_sub(state->menu, state->sub);
+  set_menu_sub(state->menu, state->main);
   post_menu(state->menu);
   return true;
 }
@@ -129,7 +126,7 @@ int main() {
   struct state state = {
     .editor = getenv("EDITOR"),
     .entry_count = 0,
-    .sub = subwin(stdscr, LINES - 2, COLS, 1, 0)
+    .main = subwin(stdscr, LINES - 2, COLS, 1, 0)
   };
   init_state(".", &state);
   while (input(&state));
