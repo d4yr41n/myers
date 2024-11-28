@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <curses.h>
 #include <menu.h>
 #include <dirent.h>
@@ -39,8 +40,9 @@ bool init_state(const char *dirname, struct state *state) {
   state->menu_items = calloc(entry_count + 1, sizeof(ITEM *));
   state->entry_count = entry_count;
 
-  for (int i = 0; i < entry_count; i++) {
-    state->menu_items[i] = new_item(entries[i]->d_name, NULL);
+  int skip = entry_count > 2 ? 2 : 1;
+  for (int i = 0; i < entry_count - skip; i++) {
+    state->menu_items[i] = new_item(entries[i + skip]->d_name, NULL);
   }
 
   clear_line(0);
@@ -48,7 +50,7 @@ bool init_state(const char *dirname, struct state *state) {
 
   state->menu = new_menu(state->menu_items);
   set_menu_mark(state->menu, NULL);
-  set_menu_format(state->menu, LINES - 2, 1);
+  set_menu_format(state->menu, LINES - 4, 1);
   set_menu_sub(state->menu, state->main);
   post_menu(state->menu);
   return true;
@@ -94,6 +96,7 @@ bool input(struct state *state) {
     case 'q':
       run = false;
       break;
+    case KEY_LEFT:
     case 'h':
       enter("..", state);
       break;
@@ -107,6 +110,7 @@ bool input(struct state *state) {
       clear_line(LINES - 1);
       menu_driver(state->menu, REQ_UP_ITEM);
       break;
+    case KEY_RIGHT:
     case 'l':
     case 10:
       enter(item_name(current_item(state->menu)), state);
@@ -115,7 +119,44 @@ bool input(struct state *state) {
   return run;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  char *usage = "Usage: myers [-vh] [path]\n";
+  int opt;
+  while ((opt = getopt(argc, argv, "vh")) != -1) {
+    switch (opt) {
+      case 'v':
+        printf("myers 0.0.0\n");
+        return 0;
+      default:
+  			fprintf(stderr, "%s", usage);
+  			return 1;
+    }
+  }
+
+  if (argv[1] != NULL) {
+    DIR *dir = opendir(argv[1]);
+    if (dir == NULL) {
+  		switch (errno) {
+  		  case EACCES:
+      		printf("myers: %s: Permission denied\n", argv[1]);
+      		break;
+      	case ENOENT: 
+      		printf("myers: %s: No such directory\n", argv[1]);
+      		break;
+      	case ENOTDIR: 
+      		printf("myers: %s: Not a directory\n", argv[1]);
+      		break;
+      }
+      return 1;
+    }
+    closedir(dir);
+    chdir(argv[1]);
+  }
+  if (argc > 2) {
+		fprintf(stderr, "%s", usage);
+		return 1;
+  }
+
   printf("\033[H\033[J");
   initscr();
   cbreak();
@@ -126,7 +167,7 @@ int main() {
   struct state state = {
     .editor = getenv("EDITOR"),
     .entry_count = 0,
-    .main = subwin(stdscr, LINES - 2, COLS, 1, 0)
+    .main = subwin(stdscr, LINES - 4, COLS, 2, 0)
   };
   init_state(".", &state);
   while (input(&state));
