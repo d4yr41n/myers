@@ -8,5 +8,5 @@ A minimal terminal file explorer
 - [ ] hotkeys to create, rename, delete files and directories
 - [ ] content preview
 - [x] scroll
-- [ ] options
-- [ ] statusline
+- [x] options
+- [ ] cursor state

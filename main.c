@@ -40,13 +40,22 @@ bool init_state(const char *dirname, struct state *state) {
   state->menu_items = calloc(entry_count + 1, sizeof(ITEM *));
   state->entry_count = entry_count;
 
+  chdir(dirname);
+
   int skip = entry_count > 2 ? 2 : 1;
+  char *name;
+  struct stat stbuf;
   for (int i = 0; i < entry_count - skip; i++) {
-    state->menu_items[i] = new_item(entries[i + skip]->d_name, NULL);
+    name = entries[i + skip]->d_name;
+    stat(name, &stbuf);
+    if (S_ISDIR(stbuf.st_mode))
+      strcat(name, "/");
+    state->menu_items[i] = new_item(name, NULL);
   }
 
+
   clear_line(0);
-  mvaddstr(0, 0, realpath(dirname, NULL));
+  mvaddstr(0, 0, realpath(".", NULL));
 
   state->menu = new_menu(state->menu_items);
   set_menu_mark(state->menu, NULL);
@@ -59,10 +68,7 @@ bool init_state(const char *dirname, struct state *state) {
 void enter(const char *name, struct state *state) {
   struct stat stbuf;
   stat(name, &stbuf);
-  if (S_ISDIR(stbuf.st_mode)) {
-    if (init_state(name, state))
-      chdir(name);
-  } else {
+  if (!init_state(name, state)) {
     if (state->editor != NULL) {
       char *cmd = malloc(strlen(state->editor) + 1);
       strcpy(cmd, state->editor);
@@ -92,6 +98,12 @@ bool input(struct state *state) {
         else if (event.bstate & BUTTON5_PRESSED)
           menu_driver(state->menu, REQ_DOWN_ITEM);
       }
+      break;
+    case 'd':
+      // TODO: delete
+      break;
+    case 'c':
+      // TODO: create 
       break;
     case 'q':
       run = false;
