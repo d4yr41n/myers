@@ -12,12 +12,25 @@ struct state {
   MENU *menu;
   int entry_count;
   char *editor;
+  char input[256];
+  bool mode;
   WINDOW *main;
 };
 
 void clear_line(int y) {
   move(y, 0);
   clrtoeol();
+}
+
+void render(struct state *state) {
+  clear_line(0);
+  mvaddstr(0, 0, realpath(".", NULL));
+
+  state->menu = new_menu(state->menu_items);
+  set_menu_sub(state->menu, state->main);
+  set_menu_mark(state->menu, NULL);
+  set_menu_format(state->menu, LINES - 4, 1);
+  post_menu(state->menu);
 }
 
 void free_state(struct state *state) {
@@ -42,7 +55,7 @@ bool init_state(const char *dirname, struct state *state) {
 
   chdir(dirname);
 
-  int skip = entry_count > 2 ? 2 : 1;
+  int skip = 1 + (entry_count > 2);
   char *name;
   struct stat stbuf;
   for (int i = 0; i < entry_count - skip; i++) {
@@ -53,82 +66,104 @@ bool init_state(const char *dirname, struct state *state) {
     state->menu_items[i] = new_item(name, NULL);
   }
 
-
-  clear_line(0);
-  mvaddstr(0, 0, realpath(".", NULL));
-
-  state->menu = new_menu(state->menu_items);
-  set_menu_mark(state->menu, NULL);
-  set_menu_format(state->menu, LINES - 4, 1);
-  set_menu_sub(state->menu, state->main);
-  post_menu(state->menu);
   return true;
 }
 
 void enter(const char *name, struct state *state) {
-  struct stat stbuf;
-  stat(name, &stbuf);
-  if (!init_state(name, state)) {
-    if (state->editor != NULL) {
-      char *cmd = malloc(strlen(state->editor) + 1);
-      strcpy(cmd, state->editor);
-      strcat(cmd, " ");
-      strcat(cmd, name);
-      def_prog_mode();
-      endwin();
-      system(cmd);
-      reset_prog_mode();
-      refresh();
-    } else {
-      mvaddstr(LINES - 1, 0, "EDITOR is not set");
-    }
-  }
+  if (init_state(name, state))
+    render(state);
+
+  // if (errno == ENOTENT)
+  //   if (state->editor != NULL) {
+  //     char *cmd = malloc(strlen(state->editor) + 1);
+  //     strcpy(cmd, state->editor);
+  //     strcat(cmd, " ");
+  //     strcat(cmd, name);
+  //     def_prog_mode();
+  //     endwin();
+  //     system(cmd);
+  //     reset_prog_mode();
+  //     refresh();
+  //   } else {
+  //     mvaddstr(LINES - 1, 0, "EDITOR is not set");
+  //   }
+  // }
 }
 
 
 bool input(struct state *state) {
-  bool run = true;
   MEVENT event;
-  switch (getch()) {
-    // Manual mouse handling seems smoother
-    case KEY_MOUSE:
-      if (getmouse(&event) == OK) {
-        if (event.bstate & BUTTON4_PRESSED)
-          menu_driver(state->menu, REQ_UP_ITEM);
-        else if (event.bstate & BUTTON5_PRESSED)
-          menu_driver(state->menu, REQ_DOWN_ITEM);
-      }
-      break;
-    case 'd':
-      // TODO: delete
-      break;
-    case 'c':
-      // TODO: create 
-      break;
-    case 'q':
-      run = false;
-      break;
-    case KEY_LEFT:
-    case 'h':
-      enter("..", state);
-      break;
-    case KEY_DOWN:
-    case 'j':
+  int length = strlen(state->input);
+  if (state->mode) {
+    char c = getch();
+    if (c == 27) {
+      state->mode = false;
+      state->input[0] = '\0';
       clear_line(LINES - 1);
-      menu_driver(state->menu, REQ_DOWN_ITEM);
-      break;
-    case KEY_UP:
-    case 'k':
+    } else if (c == 10) {
       clear_line(LINES - 1);
-      menu_driver(state->menu, REQ_UP_ITEM);
-      break;
-    case KEY_RIGHT:
-    case 'l':
-    case 10:
-      enter(item_name(current_item(state->menu)), state);
-      break;
+      if (state->input[length - 1] == '/')
+        mkdir(state->input, 0700);
+      else
+        fopen(state->input, "a");
+      state->input[0] = '\0';
+      state->mode = false;
+      init_state(".", state);
+      render(state);
+    } else if (c == 127) {
+      state->input[length - 1] = '\0';
+      clear_line(LINES - 1);
+      mvaddstr(LINES - 1, 0, state->input);
+    } else if (length < 255) {;
+      state->input[length] = c;
+      state->input[length + 1] = '\0';
+      clear_line(LINES - 1);
+      mvaddstr(LINES - 1, 0, state->input);
+    }
+  } else {
+    switch (getch()) {
+      // Manual mouse handling seems smoother
+      case KEY_MOUSE:
+        if (getmouse(&event) == OK) {
+          if (event.bstate & BUTTON4_PRESSED)
+            menu_driver(state->menu, REQ_UP_ITEM);
+          else if (event.bstate & BUTTON5_PRESSED)
+            menu_driver(state->menu, REQ_DOWN_ITEM);
+        }
+        break;
+      case 'd':
+        remove(item_name(current_item(state->menu)));
+        init_state(".", state);
+        render(state);
+        break;
+      case 'c':
+        state->mode = true;
+        break;
+      case 27:
+      case 'q':
+        return false;
+      case KEY_LEFT:
+      case 'h':
+        enter("..", state);
+        break;
+      case KEY_DOWN:
+      case 'j':
+        clear_line(LINES - 1);
+        menu_driver(state->menu, REQ_DOWN_ITEM);
+        break;
+      case KEY_UP:
+      case 'k':
+        clear_line(LINES - 1);
+        menu_driver(state->menu, REQ_UP_ITEM);
+        break;
+      case KEY_RIGHT:
+      case 'l':
+      case 10:
+        enter(item_name(current_item(state->menu)), state);
+        break;
+    }
   }
-  return run;
+  return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -145,44 +180,52 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (argv[1] != NULL) {
-    DIR *dir = opendir(argv[1]);
-    if (dir == NULL) {
-  		switch (errno) {
-  		  case EACCES:
-      		printf("myers: %s: Permission denied\n", argv[1]);
-      		break;
-      	case ENOENT: 
-      		printf("myers: %s: No such directory\n", argv[1]);
-      		break;
-      	case ENOTDIR: 
-      		printf("myers: %s: Not a directory\n", argv[1]);
-      		break;
-      }
-      return 1;
-    }
-    closedir(dir);
-    chdir(argv[1]);
-  }
   if (argc > 2) {
 		fprintf(stderr, "%s", usage);
 		return 1;
   }
 
-  printf("\033[H\033[J");
-  initscr();
-  cbreak();
-  noecho();
-  curs_set(0);
-  keypad(stdscr, true);
-  mousemask(ALL_MOUSE_EVENTS, NULL);
+  char *path = ".";
+
+  if (argc == 2) {
+    if (argv[1] != NULL) {
+      path = argv[1];
+    }
+  }
+
   struct state state = {
     .editor = getenv("EDITOR"),
     .entry_count = 0,
-    .main = subwin(stdscr, LINES - 4, COLS, 2, 0)
+    .mode = false
   };
-  init_state(".", &state);
-  while (input(&state));
-  free_state(&state);
-  endwin();
+
+  if (init_state(path, &state)) {
+    printf("\033[H\033[J");
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    keypad(stdscr, true);
+    ESCDELAY = 0;
+    mousemask(ALL_MOUSE_EVENTS, NULL);
+    state.main = subwin(stdscr, LINES - 4, COLS, 2, 0);
+    render(&state);
+    while (input(&state));
+    free_state(&state);
+    endwin();
+    return 0;
+  }
+
+	switch (errno) {
+	  case EACCES:
+  		printf("myers: %s: Permission denied\n", path);
+  		break;
+  	case ENOENT: 
+  		printf("myers: %s: No such directory\n", path);
+  		break;
+  	case ENOTDIR: 
+  		printf("myers: %s: Not a directory\n", path);
+  		break;
+  }
+  return 1;
 }
