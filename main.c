@@ -7,13 +7,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum Mode {
+  CREATE,
+  DELETE,
+  RENAME,
+  SEARCH,
+  READ
+};
+
 struct state {
   ITEM **menu_items;
   MENU *menu;
   int entry_count;
   char *editor;
   char input[256];
-  bool mode;
+  enum Mode mode;
   WINDOW *main;
 };
 
@@ -92,33 +100,74 @@ void enter(const char *name, struct state *state) {
 
 
 bool input(struct state *state) {
+  clear_line(LINES - 1);
   MEVENT event;
   int length = strlen(state->input);
-  if (state->mode) {
+  if (state->mode != READ) {
+    char *prompt;
+    switch (state->mode) {
+      case DELETE:
+        prompt = "Are you sure? (Y/n)";
+        break;
+      case CREATE:
+      case RENAME:
+        prompt = "Enter name";
+        break;
+      case SEARCH:
+        prompt = "Search";
+        break;
+    }
+    mvprintw(LINES - 1, 0, "%s: %s\n", prompt, state->input);
     char c = getch();
-    if (c == 27) {
-      state->mode = false;
-      state->input[0] = '\0';
-      clear_line(LINES - 1);
-    } else if (c == 10) {
-      clear_line(LINES - 1);
-      if (state->input[length - 1] == '/')
-        mkdir(state->input, 0700);
-      else
-        fopen(state->input, "a");
-      state->input[0] = '\0';
-      state->mode = false;
-      init_state(".", state);
-      render(state);
-    } else if (c == 127) {
-      state->input[length - 1] = '\0';
-      clear_line(LINES - 1);
-      mvaddstr(LINES - 1, 0, state->input);
-    } else if (length < 255) {;
-      state->input[length] = c;
-      state->input[length + 1] = '\0';
-      clear_line(LINES - 1);
-      mvaddstr(LINES - 1, 0, state->input);
+    switch (c) {
+      case 27:
+        state->mode = READ;
+        state->input[0] = '\0';
+        break;
+      case 10:
+        switch (state->mode) {
+          case CREATE:
+            if (state->input[length - 1] == '/')
+              mkdir(state->input, 0700);
+            else
+              fopen(state->input, "a");
+            state->input[0] = '\0';
+            state->mode = READ;
+            init_state(".", state);
+            render(state);
+            break;
+          case RENAME:
+            rename(item_name(current_item(state->menu)), state->input);
+            init_state(".", state);
+            render(state);
+            set_menu_pattern(state->menu, state->input);
+            state->input[0] = '\0';
+            state->mode = READ;
+            break;
+          case SEARCH:
+            set_menu_pattern(state->menu, state->input);
+            state->mode = READ;
+            break;
+          case DELETE:
+            if (state->input[1] == '\0' &&
+                (state->input[0] == 'y' || state->input[0] == 'Y')) {
+              remove(item_name(current_item(state->menu)));
+              init_state(".", state);
+              render(state);
+            }
+            state->input[0] = '\0';
+            state->mode = READ;
+            break;
+        }
+        break;
+      case 127:
+        state->input[length - 1] = '\0';
+        break;
+      default:
+        if (length < 255) {
+          state->input[length] = c;
+          state->input[length + 1] = '\0';
+        }
     }
   } else {
     switch (getch()) {
@@ -132,12 +181,20 @@ bool input(struct state *state) {
         }
         break;
       case 'd':
-        remove(item_name(current_item(state->menu)));
-        init_state(".", state);
-        render(state);
+        state->input[0] = '\0';
+        state->mode = DELETE;
         break;
       case 'c':
-        state->mode = true;
+        state->input[0] = '\0';
+        state->mode = CREATE;
+        break;
+      case 'r':
+        state->input[0] = '\0';
+        state->mode = RENAME;
+        break;
+      case '/':
+        state->input[0] = '\0';
+        state->mode = SEARCH;
         break;
       case 27:
       case 'q':
@@ -148,18 +205,24 @@ bool input(struct state *state) {
         break;
       case KEY_DOWN:
       case 'j':
-        clear_line(LINES - 1);
         menu_driver(state->menu, REQ_DOWN_ITEM);
         break;
       case KEY_UP:
       case 'k':
-        clear_line(LINES - 1);
         menu_driver(state->menu, REQ_UP_ITEM);
         break;
       case KEY_RIGHT:
       case 'l':
       case 10:
         enter(item_name(current_item(state->menu)), state);
+        break;
+      case 'n':
+        if (state->input[0] != '\0')
+          menu_driver(state->menu, REQ_NEXT_MATCH);
+        break;
+      case 'p':
+        if (state->input[0] != '\0')
+          menu_driver(state->menu, REQ_PREV_MATCH);
         break;
     }
   }
@@ -196,7 +259,7 @@ int main(int argc, char *argv[]) {
   struct state state = {
     .editor = getenv("EDITOR"),
     .entry_count = 0,
-    .mode = false
+    .mode = READ
   };
 
   if (init_state(path, &state)) {
