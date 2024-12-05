@@ -2,9 +2,9 @@
 
 A minimal terminal file explorer
 
-## Usage
+## Hotkeys
 
-- h - ..
+- h - ```cd ..```
 - j - down
 - k - up
 - l/Return - enter
@@ -16,9 +16,8 @@ A minimal terminal file explorer
 
 ## TODO
 
-- [ ] permission denied (error message)
-- [x] hotkeys to create, rename, delete files and directories
+- [x] hotkeys to create, rename, delete, search files and directories
 - [ ] content preview
 - [x] scroll
 - [x] options
-- [ ] cursor state
+- [ ] code quality

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ftw.h>
+#include <libgen.h>
 
 enum Mode {
   CREATE,
@@ -78,13 +79,17 @@ bool init_state(const char *dirname, struct state *state) {
   return true;
 }
 
-void enter(const char *name, struct state *state) {
+bool enter(const char *name, struct state *state) {
   struct stat stbuf;
   stat(name, &stbuf);
 
   if (S_ISDIR(stbuf.st_mode)) {
-    init_state(name, state);
-    render(state);
+    if (init_state(name, state)) {
+      render(state);
+      return true;
+    } else {
+      mvaddstr(LINES - 1, 0, "Permission denied");
+    }
   } else {
     if (state->editor != NULL) {
       char *cmd = malloc(strlen(state->editor) + 1);
@@ -100,6 +105,7 @@ void enter(const char *name, struct state *state) {
       mvaddstr(LINES - 1, 0, "EDITOR is not set");
     }
   }
+  return false;
 }
 
 
@@ -218,7 +224,9 @@ bool input(struct state *state) {
         return false;
       case KEY_LEFT:
       case 'h':
-        enter("..", state);
+        char *dir = basename(realpath(".", NULL));
+        if (enter("..", state))
+          set_menu_pattern(state->menu, dir);
         break;
       case KEY_DOWN:
       case 'j':
