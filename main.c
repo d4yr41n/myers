@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ftw.h>
 
 enum Mode {
   CREATE,
@@ -78,32 +79,40 @@ bool init_state(const char *dirname, struct state *state) {
 }
 
 void enter(const char *name, struct state *state) {
-  if (init_state(name, state))
-    render(state);
+  struct stat stbuf;
+  stat(name, &stbuf);
 
-  // if (errno == ENOTENT)
-  //   if (state->editor != NULL) {
-  //     char *cmd = malloc(strlen(state->editor) + 1);
-  //     strcpy(cmd, state->editor);
-  //     strcat(cmd, " ");
-  //     strcat(cmd, name);
-  //     def_prog_mode();
-  //     endwin();
-  //     system(cmd);
-  //     reset_prog_mode();
-  //     refresh();
-  //   } else {
-  //     mvaddstr(LINES - 1, 0, "EDITOR is not set");
-  //   }
-  // }
+  if (S_ISDIR(stbuf.st_mode)) {
+    init_state(name, state);
+    render(state);
+  } else {
+    if (state->editor != NULL) {
+      char *cmd = malloc(strlen(state->editor) + 1);
+      strcpy(cmd, state->editor);
+      strcat(cmd, " ");
+      strcat(cmd, name);
+      def_prog_mode();
+      endwin();
+      system(cmd);
+      reset_prog_mode();
+      refresh();
+    } else {
+      mvaddstr(LINES - 1, 0, "EDITOR is not set");
+    }
+  }
+}
+
+
+int remove_entry(const char *path, const struct stat *stbuf, int type, struct FTW *ftwb) {
+  return remove(path);
 }
 
 
 bool input(struct state *state) {
-  clear_line(LINES - 1);
   MEVENT event;
   int length = strlen(state->input);
   if (state->mode != READ) {
+    clear_line(LINES - 1);
     char *prompt;
     switch (state->mode) {
       case DELETE:
@@ -151,7 +160,12 @@ bool input(struct state *state) {
           case DELETE:
             if (state->input[1] == '\0' &&
                 (state->input[0] == 'y' || state->input[0] == 'Y')) {
-              remove(item_name(current_item(state->menu)));
+              nftw(
+                item_name(current_item(state->menu)),
+                remove_entry,
+                10,
+                FTW_PHYS | FTW_DEPTH | FTW_MOUNT
+              );
               init_state(".", state);
               render(state);
             }
@@ -174,10 +188,13 @@ bool input(struct state *state) {
       // Manual mouse handling seems smoother
       case KEY_MOUSE:
         if (getmouse(&event) == OK) {
-          if (event.bstate & BUTTON4_PRESSED)
+          if (event.bstate & BUTTON4_PRESSED) {
+            clear_line(LINES - 1);
             menu_driver(state->menu, REQ_UP_ITEM);
-          else if (event.bstate & BUTTON5_PRESSED)
+          } else if (event.bstate & BUTTON5_PRESSED) {
+            clear_line(LINES - 1);
             menu_driver(state->menu, REQ_DOWN_ITEM);
+          }
         }
         break;
       case 'd':
@@ -205,10 +222,12 @@ bool input(struct state *state) {
         break;
       case KEY_DOWN:
       case 'j':
+        clear_line(LINES - 1);
         menu_driver(state->menu, REQ_DOWN_ITEM);
         break;
       case KEY_UP:
       case 'k':
+        clear_line(LINES - 1);
         menu_driver(state->menu, REQ_UP_ITEM);
         break;
       case KEY_RIGHT:
