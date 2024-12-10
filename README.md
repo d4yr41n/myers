@@ -21,3 +21,6 @@ A minimal terminal file explorer
 - [x] scroll
 - [x] options
 - [ ] code quality
+- [ ] prompt
+  - [ ] cursor
+  - [ ] clear
